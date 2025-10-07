@@ -34,6 +34,7 @@ MoodMap : dict[str,int] = {
 
 pointOfReferenceDate : datetime = datetime.today()
 
+# ============== Entry List Tab Functions ============== #
 def overwrite_entry(date: str, target_index: int, mood: int, jText: Text):
     """
     Updates entries already in mood_data.csv. Entries are identifable by its date and the index (in case of similarities of date)
@@ -57,32 +58,6 @@ def overwrite_entry(date: str, target_index: int, mood: int, jText: Text):
         if csvfile.tell() == 0:
             writer.writeheader()
         writer.writerows(entries)
-
-def select_mood(m: str, emojiButtons : list[ttk.Button], selected_mood : StringVar):
-    """
-    Creates the buttons for selecting the mood based on the emoji
-    """
-    selected_mood.set(m)
-    for btn in emojiButtons:
-        btn.configure(style="TButton")
-    emojiButtons[MoodMap[m]-1].configure(style="Selected.TButton")
-
-def save_log_entry(selected_mood : StringVar, journal : Text, selDate : StringVar, confirmation_label : ttk.Label):
-    """
-    Prepares the mood, score, and journal to be written to the csv file, checks if either mood or date is missing before saving.
-    """
-    mood = selected_mood.get()
-    score : int = MoodMap.get(mood,0)
-    note = journal.get("1.0", "end").strip()
-    date = selDate.get()
-    if not mood:
-        confirmation_label.config(text = "Please select a mood before saving.")
-        return
-    if not date:
-        confirmation_label.config(text = "Please select a date before saving")
-        return
-    save_entry(date, score, note)
-    confirmation_label.config(text="Entry saved!")
 
 def render_entries(container : ttk.Frame):
     """
@@ -131,6 +106,34 @@ def render_entries(container : ttk.Frame):
 
             ttk.Button(displayEntryFrame, text= "Delete", command = notANestedCallback([(delete_entry, [date, i], {}),(render_entries, [container], {})])).pack(side='right', padx=5) #type: ignore
             ttk.Button(displayEntryFrame, text = "Update Changes", command = notANestedCallback([(overwrite_entry, [date, i, mood, jtext], {})])).pack(side = 'right', padx = 5)
+
+# ============== Mood Logger Tab Functions ============== #
+
+def select_mood(m: str, emojiButtons : list[ttk.Button], selected_mood : StringVar):
+    """
+    Creates the buttons for selecting the mood based on the emoji
+    """
+    selected_mood.set(m)
+    for btn in emojiButtons:
+        btn.configure(style="TButton")
+    emojiButtons[MoodMap[m]-1].configure(style="Selected.TButton")
+
+def save_log_entry(selected_mood : StringVar, journal : Text, selDate : StringVar, confirmation_label : ttk.Label):
+    """
+    Prepares the mood, score, and journal to be written to the csv file, checks if either mood or date is missing before saving.
+    """
+    mood = selected_mood.get()
+    score : int = MoodMap.get(mood,0)
+    note = journal.get("1.0", "end").strip()
+    date = selDate.get()
+    if not mood:
+        confirmation_label.config(text = "Please select a mood before saving.")
+        return
+    if not date:
+        confirmation_label.config(text = "Please select a date before saving")
+        return
+    save_entry(date, score, note)
+    confirmation_label.config(text="Entry saved!")
 
 def calendarcreator(
         parent : ttk.Frame, 
@@ -184,6 +187,8 @@ def calendarcreator(
 
             ttk.Label(dateContainer, text = cellLabel, justify = 'center').pack()
             ttk.Button(dateContainer, text="Select", command = notANestedCallback([(function, [day_date], {})])).pack()
+
+# ============== Plot Chart Tab Functions ============== #
 
 def middle_Mood(cD: datetime):      
     """
@@ -257,7 +262,7 @@ def plot_mood_chart(
 
     canvas.draw()
 
-
+# ============== Shared Functions ============== #
 def refresh(
         
         canvas : FigureCanvasTkAgg ,
@@ -302,7 +307,6 @@ def shift_page(
     global pointOfReferenceDate
     pointOfReferenceDate = state["center_date"]
     return 
-
 
 def notANestedCallback(
         funcAndArgList: list[
