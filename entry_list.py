@@ -1,5 +1,6 @@
 from tkinter import ttk, Canvas, Event
-from miscallaenousHelper import render_entries
+
+from miscallaenousHelper import render_entries, notANestedCallback
 
 def build_entries_tab(tab_entries: ttk.Frame):
     """
@@ -11,8 +12,8 @@ def build_entries_tab(tab_entries: ttk.Frame):
 
     scrollbar = ttk.Scrollbar(tab_entries, orient = 'vertical', command = canvas.yview)  # type: ignore , scrollbar is part of tab_entries
     container : ttk.Frame = ttk.Frame(canvas)                                            # container is a frame inside canvas
-    container.bind('<Configure>', lambda e: canvas.config(scrollregion = canvas.bbox('all')))  # bind container to canvas
-    
+    container.bind('<Configure>', lambda e: canvas.config(scrollregion = canvas.bbox('all')))  # bind container to canvas # not a nested function so its safe
+                                    
     def resize_container(event : Event):
         canvas.itemconfig(container_window, width=event.width) # container will adjust to the size of canvas
 
@@ -26,6 +27,6 @@ def build_entries_tab(tab_entries: ttk.Frame):
     canvas.config(yscrollcommand = scrollbar.set)
     scrollbar.place(relx = 0.98, rely = 0, relheight = 0.9)
 
-    ttk.Button(tab_entries, text="🔄 Refresh Entries", command=lambda c = container: render_entries(c)).place(rely = 0.9, relx = 0.5, anchor = 'center')
+    ttk.Button(tab_entries, text="Refresh Entries", command = notANestedCallback([(render_entries, [container], {})])).place(rely = 0.9, relx = 0.5, anchor = 'center')
 
     render_entries(container)

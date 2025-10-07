@@ -4,9 +4,9 @@ from tkinter import ttk
 from ttkthemes import ThemedTk
 
 # Imported Functions from [tab]_tab.py
-from logging_tab import build_logging_tab as bobthebuilder 
-from entry_list import build_entries_tab as mannyhandyman
-from chart_tab import build_chart_tab as vickdeforester
+from logging_tab import build_logging_tab 
+from entry_list import build_entries_tab
+from chart_tab import build_chart_tab
 
 # Author's Message to the reader:
 # This code is a testament:
@@ -16,7 +16,6 @@ from chart_tab import build_chart_tab as vickdeforester
 if __name__ == '__main__':
     root = ThemedTk(theme="adapta")
     root.title('Happy Path Mood Diary') 
-    
     TabControl = ttk.Notebook(root)                     #notebook tabs similar to MS OneNote Notebooks
 
     loggingtab = ttk.Frame(TabControl)                  #ttk.Frame -> container for widgets; params -> (parent, opt: padding, width/height (fixed), ttk.Style)
@@ -33,10 +32,11 @@ if __name__ == '__main__':
 
     TabControl.pack(expand = True, fill = 'both')          #.pack -> widget geometry assingment within parent
 
-    bobthebuilder(loggingtab) #build the logging tab
-    mannyhandyman(entriestab) #build the entry list tab
-    vickdeforester(weeklychart) #builds the plot tab
+    build_logging_tab(loggingtab) #build the logging tab
+    build_entries_tab(entriestab) #build the entry list tab
+    build_chart_tab(weeklychart) #builds the plot tab
 
-    quitButton = ttk.Button(root, text = 'Quit', command = root.destroy).pack(side = 'bottom', pady = 3)
+    quitButton = ttk.Button(root, text = 'Quit', command = root.destroy).pack(side = 'right', pady = 3)
 
+    root.configure(background = "#dd9f9f")
     root.mainloop()

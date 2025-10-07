@@ -1,13 +1,18 @@
 import csv
+
 from tkinter import Text
 from tkinter import ttk, StringVar, Entry, Text, Canvas
-from collections import defaultdict
-from typing import Any
-from data_loader import load_entries, delete_entry #type: ignore
+
 from datetime import datetime, timedelta
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.axes import Axes
+
+from typing import Any
+from collections import defaultdict
 from collections.abc import Callable
+
+from data_loader import load_entries, delete_entry , save_entry#type: ignore
 
 # for entry list color coding and emoji display
 mdcolor : dict[int, tuple[str,str]] = {
@@ -53,6 +58,32 @@ def overwrite_entry(date: str, target_index: int, mood: int, jText: Text):
             writer.writeheader()
         writer.writerows(entries)
 
+def select_mood(m: str, emojiButtons : list[ttk.Button], selected_mood : StringVar):
+    """
+    Creates the buttons for selecting the mood based on the emoji
+    """
+    selected_mood.set(m)
+    for btn in emojiButtons:
+        btn.configure(style="TButton")
+    emojiButtons[MoodMap[m]-1].configure(style="Selected.TButton")
+
+def save_log_entry(selected_mood : StringVar, journal : Text, selDate : StringVar, confirmation_label : ttk.Label):
+    """
+    Prepares the mood, score, and journal to be written to the csv file, checks if either mood or date is missing before saving.
+    """
+    mood = selected_mood.get()
+    score : int = MoodMap.get(mood,0)
+    note = journal.get("1.0", "end").strip()
+    date = selDate.get()
+    if not mood:
+        confirmation_label.config(text = "Please select a mood before saving.")
+        return
+    if not date:
+        confirmation_label.config(text = "Please select a date before saving")
+        return
+    save_entry(date, score, note)
+    confirmation_label.config(text="Entry saved!")
+
 def render_entries(container : ttk.Frame):
     """
     Renders the entries tab, callable via lambda (button) or direct approach
@@ -69,7 +100,7 @@ def render_entries(container : ttk.Frame):
         return
 
     date : str
-    for date in entries.keys():
+    for date in sorted(entries.keys(), reverse = True):
         ttk.Label(container, text=f"📅 {date}", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
         for i, entry in enumerate(entries[date]):
             mood = entry["mood"]
@@ -79,7 +110,7 @@ def render_entries(container : ttk.Frame):
             displayEntryFrame.pack(fill="x", padx=20, pady=2)
 
             mood_int = entry.get("mood", 1)
-            x = mdcolor.get(mood_int, "#f0f0f0")
+            x = mdcolor.get(mood_int,( "#f0f0f0", 'X'))
             bg_color = x[0]
             memoji = x[1]
 
@@ -98,14 +129,8 @@ def render_entries(container : ttk.Frame):
             jtext.insert("1.0", journal) # .insert takes (text (index format: (y.x)), target)
             jtext.pack(side = 'left', fill = 'x', expand = True)
 
-            def call_delete_entry(d : str =date, idx : int =i):
-                return lambda: (
-                    delete_entry(d, idx),
-                    render_entries(container)
-                )
-
-            ttk.Button(displayEntryFrame, text="🗑️ Delete", command=call_delete_entry()).pack(side='right', padx=5)
-            ttk.Button(displayEntryFrame, text = "Update Changes", command = lambda date = date, tindex = i, mood = mood, jText = jtext: overwrite_entry(date, tindex, mood, jText)).pack(side = 'right', padx = 5)
+            ttk.Button(displayEntryFrame, text= "Delete", command = notANestedCallback([(delete_entry, [date, i], {}),(render_entries, [container], {})])).pack(side='right', padx=5) #type: ignore
+            ttk.Button(displayEntryFrame, text = "Update Changes", command = notANestedCallback([(overwrite_entry, [date, i, mood, jtext], {})])).pack(side = 'right', padx = 5)
 
 def calendarcreator(
         parent : ttk.Frame, 
@@ -127,53 +152,66 @@ def calendarcreator(
     selDateLabel = ttk.Label(parent, textvariable = selDate)
     selDateLabel.pack(pady = 5)
 
-    calendarContainer = ttk.Frame(parent, borderwidth=2, relief="ridge", padding=10)
+    calendarContainer = ttk.Frame(parent, borderwidth=2, relief = 'solid', padding=10)
     calendarContainer.pack(pady=10, fill="both", expand = True)
     
     rows, columns = 4, 7
     relXPos, relYPos = 1 / columns, 1 / rows
-    """
+    
     for i in range(columns):
         day_date = PORdate + timedelta(i)
         dayOfTheWeek = day_date.strftime("%A")
-        ttk.Label(calendarContainer, text = dayOfTheWeek, padding = 5, relief = "groove", borderwidth = 2).place(
+        ttk.Label(calendarContainer, text = dayOfTheWeek, justify = 'center', padding = 5).place(
                 relx=(i + 0.5) * relXPos,
                 relwidth=relXPos,
-                relheight= 0.05,
+                relheight= 0.1,
                 anchor="center"
-        )"""
+        )
 
     for j in range(rows):
         for i in range(columns):
             day_date : datetime = PORdate + timedelta(days = i + j * columns)
             cellLabel = day_date.strftime("%B %d, %Y")
 
-            dateContainer = ttk.Frame(calendarContainer, padding=5, relief="groove", borderwidth = 2) #relief -> visual border style
+            dateContainer = ttk.Frame(calendarContainer, padding=5, relief = 'sunken', borderwidth = 2) #relief -> visual border style
             dateContainer.place(
                 relx=(i + 0.5) * relXPos,
-                rely=(j + 0.5) * relYPos,
+                rely= 0.05 + (j + 0.5) * relYPos,
                 relwidth=relXPos,
-                relheight= 0.1 + relYPos,
+                relheight=relYPos,
                 anchor="center"
             )
+
             ttk.Label(dateContainer, text = cellLabel, justify = 'center').pack()
-            ttk.Button(dateContainer, text="Select", command=lambda d=day_date: function(d)).pack()
+            ttk.Button(dateContainer, text="Select", command = notANestedCallback([(function, [day_date], {})])).pack()
 
-def middle_Mood(entries: defaultdict[str, list[dict[str, Any]]], cD: datetime):# type: ignore
-    avgScore : dict[str, float | None] = {}
+def middle_Mood(cD: datetime):      
+    """
+    Loads 7 entries to be plotted in the chart tab. Middles the current day.
+    """
+    entries: defaultdict[str, list[dict[str, Any]]] = load_entries() #type: ignore
+    print(entries)
+    """sample entries: {'2025-10-06' : [
+    {
+        'mood': 2, 
+        'journal': 'stringhere'
+    }
+    ]}""" 
+    avgScore : dict[str, float] = {}
     for delta in range(-4,3):
-        x = (cD + timedelta(days = delta)).strftime("%Y-%m-%d")
+        xAxisPlot = (cD + timedelta(days = delta)).strftime("%Y-%m-%d") # 
         y : list[int] = []
-        for row in entries.get(x, []):
-            raw_mood = row.get("mood", "")
-            moodInt = int(raw_mood)
+        for row in entries.get(xAxisPlot, []):
+            raw_mood = row.get("mood")
+            moodInt = int(raw_mood) # pyright: ignore[reportArgumentType]
             y.append(moodInt)
-
-        avgScore[x] = sum(y) / len(y) if y else None
-
+        avgScore[xAxisPlot] = sum(y) / len(y) if y else 0.0
     return avgScore
 
 def get_dynamic_figsize(widget : Canvas, dpi : int = 100) -> tuple[float, float]:
+    """
+    Resizes the plot figsize depending on current px of the window
+    """
     width_px : float = widget.winfo_width()
     height_px  : float = widget.winfo_height()
     width_in  : float = max(width_px / dpi, 4)   # clamp to minimum size
@@ -182,23 +220,24 @@ def get_dynamic_figsize(widget : Canvas, dpi : int = 100) -> tuple[float, float]
 
 def plot_mood_chart(
         
-        entries : Any ,
+        entries : Any,
         canvas : FigureCanvasTkAgg ,
         plotStatus : ttk.Frame, 
         chart : Axes, 
         calDate : list[str], 
-        score : list[ float | int | None]
+        score : list[ float | int ]
         
     ):
     """
     Sets up the plot using matplotlib. Uses Dates as x-axis. Y axis is restricted from y = 0 to y = 5. 
     """
     if not entries:
-        ttk.Label(plotStatus, text="Nothing to plot here! Enter something first at the logging tab!").pack(pady=10)
+        chart.clear()
+        canvas.draw()
         return
-
-    chart.clear()
-    chart.plot(calDate, score, marker="o")                                                   #type: ignore
+    
+    chart.clear()   
+    chart.plot(calDate, score, marker="o")                                                   # pyright: ignore[reportUnknownMemberType]
     chart.set_title("Average Mood")                                                          #type: ignore
     chart.set_ylabel("Mood Score")                                                           #type: ignore
     chart.set_ylim(0,5)                                                                      #type: ignore
@@ -214,24 +253,28 @@ def plot_mood_chart(
 
     # Annotate each point
     for i, val in enumerate(score):
-        chart.annotate(f"{val:.1f}", (i, val), textcoords="offset points", xytext=(0, 5),    #type: ignore
-                        ha='center', fontsize=8)
+        chart.annotate(f"{val:.1f}", (i, val), textcoords="offset points", xytext=(0, 5), ha='center', fontsize=8)    #type: ignore
 
     canvas.draw()
 
-# Refresh logic
+
 def refresh(
         
-        entries : Any ,
         canvas : FigureCanvasTkAgg ,
         plotStatus : ttk.Frame, 
         chart : Axes, 
         state : dict[str, datetime],
         
     ):  
-    averageMood = middle_Mood(entries, state["center_date"])
+    """
+    Refresh button logic, readies/remakes the values for the plotting function
+    """
+    entries: defaultdict[str, list[dict[str, Any]]] = load_entries() #type: ignore
+    averageMood = middle_Mood(state["center_date"])
+    print('Middle Mood was triggered by refresh!')
     calDate = list(averageMood.keys())
-    score = [averageMood[d] if averageMood[d] is not None else 0 for d in calDate]
+    score = [averageMood[d] for d in calDate]
+    print(averageMood)
     plot_mood_chart(entries ,canvas, plotStatus, chart, calDate, score)
 
 def shift_page(
@@ -243,6 +286,9 @@ def shift_page(
         chart : Axes | None = None
 
     ):
+    """
+    Date adjusment function. Depending on the caller, timedelta is either 1 (if called from plot) or 28 (if called from calendar). Call from plot also invokes refresh() function. Updates the global point of reference date
+    """
     print(callerID)
     if callerID[0] == 'left':
         state["center_date"] -= timedelta(days = (1 if callerID[1] == 'Plot' else 28)) # center date is adjusted by 1 if called from the plot tab and 28 if otherwise
@@ -250,8 +296,27 @@ def shift_page(
         state["center_date"] += timedelta(days = (1 if callerID[1] == 'Plot' else 28) )
 
     if callerID[1] == 'Plot':
-        refresh(entries = entries ,canvas = canvas, plotStatus = plotStatus, chart = chart, state = state) #type: ignore
+        refresh(canvas = canvas, plotStatus = plotStatus, chart = chart, state = state) #type: ignore
         return
+    
     global pointOfReferenceDate
     pointOfReferenceDate = state["center_date"]
     return 
+
+
+def notANestedCallback(
+        funcAndArgList: list[
+            tuple[
+                Callable[..., Any], 
+                list[Any], 
+                dict[str, Any]
+                 ]
+            ]) -> Callable[[], Any | None]:
+    """
+    Button logic to avoid nesting inside buttons, takes a list of tuples containing a pair of a callable functio, list of positional arguments OR dictionary of keyword arguments.
+    """
+    def callableFunction():
+        for func, args, kwargs in funcAndArgList:
+            func(*args, **kwargs)
+    
+    return callableFunction
